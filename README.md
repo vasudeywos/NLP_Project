@@ -1,134 +1,232 @@
-# NLP Project
+# NLP Course Assignment: Structured Data Extraction from Lab Reports
 
-This project implements an end-to-end pipeline to extract structured information from PDF lab reports. The system converts unstructured documents into a clean, queryable JSON format by leveraging a combination of image processing, rule-based methods, and a sophisticated multimodal deep learning model. A Human-in-the-Loop (HITL) web interface is included for data validation and progressive model improvement.
+## Introduction
 
-## 📋 Table of Contents
+This project develops an end-to-end pipeline for extracting structured data from lab report PDFs and converting it into JSON format using natural language processing (NLP) techniques. The objective is to extract patient details (e.g., name, age, gender), test results (e.g., test name, value, unit), and additional sections (e.g., treatment goals) from unstructured PDFs, addressing the supervised learning task of text-to-JSON conversion. The pipeline combines rule-based methods, human-in-the-loop (HITL) data labeling, and transformer-based models (BERT and LayoutLMv3). This report details the methodology, implementation, results, and challenges, with the full codebase available in the GitHub repository.
 
-  - [Project Overview](https://www.google.com/search?q=%23-project-overview)
-  - [System Architecture](https://www.google.com/search?q=%23-system-architecture)
-  - [Implementation Details](https://www.google.com/search?q=%23-implementation-details)
-      - [1. Preprocessing and OCR](https://www.google.com/search?q=%231-preprocessing-and-ocr)
-      - [2. Rule-Based Extraction (Baseline)](https://www.google.com/search?q=%232-rule-based-extraction-baseline)
-      - [3. Human-in-the-Loop (HITL) for Data Labeling](https://www.google.com/search?q=%233-human-in-the-loop-hitl-for-data-labeling)
-      - [4. Supervised Learning with Transformer Models](https://www.google.com/search?q=%234-supervised-learning-with-transformer-models)
-  - [How to Run the Project](https://www.google.com/search?q=%23-how-to-run-the-project)
-  - [Model Performance and Future Work](https://www.google.com/search?q=%23-model-performance-and-future-work)
+## Project Objectives
 
------
+The goal is to create a robust system for:
 
-## 🔭 Project Overview
+1. Converting PDF lab reports into structured JSON format.
+2. Implementing a modular pipeline with preprocessing, OCR, rule-based extraction, HITL labeling, and supervised learning.
+3. Comparing traditional NLP (BERT) with layout-aware models (LayoutLMv3) for named entity recognition (NER).
+4. Ensuring scalability and iterative improvement through human feedback.
 
-The primary goal of this project is to automate the extraction of key-value pairs and tabular data from scanned lab reports. These documents, often in PDF format, contain critical information in a semi-structured layout that is challenging for traditional parsers. This project builds a supervised learning pipeline to convert the OCR-extracted text into a structured JSON object.
+## Dataset
 
-**Input**: A PDF lab report.
-**Output**: A structured JSON file containing patient details, test results, and other relevant sections.
+The dataset comprises five lab report PDFs (`doc_1.pdf` to `doc_5.pdf`) provided as part of the course assignment. These documents contain:
+
+- **Patient Details**: Key-value pairs (e.g., Name: John Doe, Age: 45).
+- **Test Results**: Tabular data with test names, values, and units (e.g., Glucose, 90, mg/dL).
+- **Additional Sections**: Optional fields like treatment goals or comments.
+
+The PDFs were processed to generate images, OCR tokens, and labeled data for training, as described below.
+
+## Methodology
+
+The pipeline follows a 10-step modular approach as specified in the assignment document:
+
+### 1. PDF Preprocessing (`preprocess.py`)
+
+- **Objective**: Convert PDFs to images and enhance them for OCR.
+- **Process**:
+  - Use `pdf2image` to convert PDFs to PNG images at 300 DPI.
+  - Apply OpenCV for:
+    - **Auto-orientation**: Correct page rotation using Tesseract’s OSD.
+    - **Deskewing**: Fix tilt via Hough Transform for line detection.
+    - **Denoising and Binarization**: Use median blur and Otsu’s thresholding.
+  - **Output**: Preprocessed images in `data/preprocessed/` (e.g., `doc_1_page_01_proc.png`).
+
+### 2. OCR and Tokenization (`ocr.py`)
+
+- **Objective**: Extract text and spatial information from images.
+- **Process**:
+  - Use `pytesseract` to perform OCR, capturing text, bounding boxes (`left`, `top`, `width`, `height`), and confidence scores.
+  - Save tokens as JSON in `data/ocr_tokens/` (e.g., `doc_1_page_01.json`).
+  - **Output**: List of tokens with text, coordinates, and confidence.
+
+### 3. Rule-Based Extraction (`rules.py`)
+
+- **Objective**: Provide a baseline for extracting key-value pairs and test results.
+- **Process**:
+  - Group tokens into lines based on y-coordinate proximity (`y_tol=5`).
+  - Extract key-value pairs using regex to detect keys (e.g., ending with `:`) and values (stopping at the next key’s left coordinate).
+  - Extract test results using regex for patterns like `[Test Name] [Value] [Unit]` (e.g., `Glucose 90 mg/dL`).
+  - Standardize keys (e.g., `labid` → `lab_id`) and clean OCR errors.
+  - **Output**: Baseline JSON in `data/baseline/` (e.g., `doc_1_page_01_baseline.json`).
+
+### 4. Human-in-the-Loop (HITL) Labeling (`hitl.py`)
+
+- **Objective**: Correct baseline outputs and generate labeled data.
+- **Process**:
+  - Use Streamlit to create a web UI displaying:
+    - Preprocessed page image for reference.
+    - Editable tables for patient details and test results.
+    - Options to add new columns or sections (e.g., `treatment_goals`).
+  - Compute confidence scores via fuzzy matching with `difflib`.
+  - Save corrected JSON to `data/confirmed/` and correction data (tokens + corrected JSON) to `data/corrections/`.
+  - **Output**: Labeled dataset for training.
+
+### 5. BIO Tagging for NER
+
+- **Objective**: Prepare data for supervised learning.
+- **Process** (`bert.py`, `train_layoutLM.py`):
+  - Convert corrected JSON into BIO (Beginning, Inside, Outside) tags for NER.
+  - Fuzzy-match entity values (e.g., `PATIENT_NAME`, `TEST_VALUE`) to OCR tokens.
+  - Assign `B-` and `I-` tags to matched tokens, `O` to others.
+  - For LayoutLMv3, normalize bounding boxes to \[0, 1000\] range.
+  - **Output**: Dataset with tokens, BIO labels, and (for LayoutLMv3) bounding boxes.
+
+### 6. Model Training
+
+Two models were trained for NER-based extraction:
+
+#### BERT (`bert.py`)
+
+- **Model**: `bert-base-uncased` for token classification.
+- **Process**:
+  - Tokenize with `BertTokenizerFast`, aligning labels with subword tokens.
+  - Train for 5 epochs (learning rate 2e-5, batch size 2).
+  - Evaluate using `seqeval` (F1, precision, recall).
+  - Save to `models/bert_lab_extractor/final`.
+- **Limitations**:
+  - BERT uses 1D textual input, ignoring document layout.
+  - Poor performance on lab reports due to reliance on spatial cues (e.g., tables, columns).
+
+#### LayoutLMv3 (`train_layoutLM.py`)
+
+- **Model**: `microsoft/layoutlmv3-base` for token classification.
+- **Process**:
+  - Use `LayoutLMv3Processor` to encode tokens, bounding boxes, and images.
+  - Train for 40 epochs (learning rate 2e-5, batch size 2).
+  - Evaluate using `seqeval`.
+  - Save to `models/layoutlmv3_lab_extractor/final`.
+- **Advantages**:
+  - Leverages 2D layout (bounding boxes) and image features.
+  - Captures table structures and column alignments, critical for lab reports.
+
+### 7. Inference
+
+- **Objective**: Generate final JSON outputs.
+- **Process**:
+  - Predict BIO tags using trained models.
+  - Structure predictions into JSON (`patient`, `tests`, `additional_sections`).
+  - Combine rule-based and model-based outputs, using confidence scores for conflict resolution.
+  - **Output**: Final JSON in `data/outputs/`.
+
+### 8. Evaluation
+
+- **Metrics**: F1, precision, recall via `seqeval`.
+- **Results**:
+  - **Rule-Based**: Provided immediate usable output but required manual correction for OCR errors.
+  - **BERT**: Low F1 due to inability to handle layout-dependent information.
+  - **LayoutLMv3**: Higher F1 by capturing spatial and visual context, aligning better with human-corrected outputs.
+
+### 9. Iteration
+
+- New HITL corrections are saved to `data/corrections/`.
+- LayoutLMv3 is retrained periodically to improve performance.
+
+## Repository Structure
+
+```
+NLP_proj/
+├── bert.py                  # BERT training and inference
+├── hitl.py                 # Streamlit HITL UI for data correction
+├── ocr.py                  # Tesseract OCR for token extraction
+├── preprocess.py           # PDF-to-image and preprocessing
+├── rules.py                # Rule-based extraction with regex
+├── train_bert.py           # BERT training (variant)
+├── train_layoutLM.py       # LayoutLMv3 training
+├── train_LM2.py            # Experimental (unused)
+├── train_LM3.py            # Alias for LayoutLMv3 training
+├── test1.py, test2.py      # Component test scripts
+├── test_all.py             # Comprehensive test script
+├── test.ipynb              # Jupyter notebook for exploration
+├── data/
+│   ├── baseline/           # Baseline JSON from rule-based extraction
+│   ├── confirmed/          # Confirmed JSON from HITL
+│   ├── corrections/        # Labeled data for training
+│   ├── ocr_tokens/         # OCR tokens with bounding boxes
+│   ├── preprocessed/       # Preprocessed PNG images
+│   ├── outputs/            # Final JSON outputs
+│   ├── doc_1.pdf, ...      # Input lab report PDFs
+├── models/                 # Trained model checkpoints
+├── detectron2/             # Unused (experimental)
+├── __pycache__/            # Python cache
+├── venv2/                  # Virtual environment
+```
+
+## Results and Discussion
+
+- **Rule-Based Extraction**:
+  - Strengths: Quick to implement, effective for structured fields with clear separators (e.g., `Name:`).
+  - Weaknesses: Sensitive to OCR errors, struggles with complex layouts or inconsistent formats.
+- **BERT**:
+  - Performance: Low F1 due to reliance on 1D text sequence, missing spatial context (e.g., table alignments).
+  - Challenges: Misidentified entities in tables or multi-column layouts.
+- **LayoutLMv3**:
+  - Performance: Superior F1 by incorporating 2D bounding boxes and image features, capturing layout nuances.
+  - Strengths: Handled tables and columns effectively, aligning with human-corrected outputs.
+- **HITL**: Critical for generating high-quality labeled data, enabling iterative model improvement.
+
+### Representative JSON Output
+
+Below is an example JSON output for `doc_1_page_01` (to be replaced with actual output from your repository):
 
 ```json
 {
   "patient": {
-    "name": {"Value": "Mr. John Doe"},
-    "age": {"Value": "45 Years"}
+    "name": {"Value": "John Doe", "Confidence": 0.95},
+    "age": {"Value": "45", "Confidence": 0.92},
+    "gender": {"Value": "Male", "Confidence": 0.93},
+    "lab_id": {"Value": "LAB12345", "Confidence": 0.90}
   },
   "tests": [
     {
+      "name": "Glucose",
+      "value": "90",
+      "unit": "mg/dL",
+      "Confidence": 0.94
+    },
+    {
       "name": "Hemoglobin",
-      "value": "14.5",
-      "unit": "g/dL"
+      "value": "13.5",
+      "unit": "g/dL",
+      "Confidence": 0.91
     }
-  ]
+  ],
+  "additional_sections": {
+    "treatment_goals": [
+      {
+        "category": "Cholesterol",
+        "value": "Reduce LDL to <100 mg/dL",
+        "Confidence": 0.89
+      }
+    ]
+  }
 }
 ```
 
------
+## Image Placeholders
 
-## 🏛️ System Architecture
+Below are placeholders for representative images (to be added via GitHub):
 
-The project follows a multi-stage pipeline, ensuring robustness and continuous improvement.
+- **Figure 1: Sample Preprocessed Image** (`data/preprocessed/doc_1_page_01_proc.png`)
+  - ![Sample Preprocessed Image](data/images/doc_pic.png)
+- **Figure 2: HITL UI Screenshot**
+  - ![Sample Preprocessed Image](data/images/hitl_pic.png)
+- **Figure 3: OUtput** (`data/doc_1.pdf`)
+  - ![Sample Preprocessed Image](data/images/json_pic.png)
 
-1.  **File Input & Preprocessing**: PDFs are converted into clean, machine-readable images. (`preprocess.py`)
-2.  **OCR & Tokenization**: Text and its coordinates are extracted from the images. (`ocr.py`)
-3.  **Rule-Based Baseline**: A regex and heuristic-based system provides initial, structured output. (`rules.py`)
-4.  **Human-in-the-Loop (HITL)**: A Streamlit web app allows users to correct the baseline output, creating a high-quality labeled dataset. (`hitl.py`)
-5.  **Supervised Model Training**: A Transformer-based model is trained on the human-corrected data for Named Entity Recognition (NER). (`train_layoutlmv3.py`)
-6.  **Inference**: The trained model is used to extract information from new documents.
+## Challenges
 
------
+1. **OCR Errors**: Tesseract struggled with low-quality scans or unusual fonts, requiring robust rule-based cleaning and HITL correction.
+2. **Complex Layouts**: Tables and multi-column formats challenged BERT, necessitating LayoutLMv3.
+3. **Limited Data**: Small dataset size (5 PDFs) limited model generalization, mitigated by HITL iterations.
 
-## ⚙️ Implementation Details
 
-### 1\. Preprocessing and OCR
+## Conclusion
 
-This initial stage is handled by `preprocess.py` and `ocr.py`. It ensures that the text extraction process is as accurate as possible.
-
-  * **PDF to Image Conversion**: The `pdf2image` library converts each page of a source PDF into a high-resolution PNG image.
-  * **Image Cleaning**: **OpenCV** is used to perform critical image enhancement tasks:
-      * **Auto-Orientation**: Detects and corrects the orientation of the scanned page using `pytesseract.image_to_osd`.
-      * **Deskewing**: Straightens pages that were scanned at a slight angle.
-      * **Denoising & Binarization**: A median blur removes noise, and Otsu's thresholding converts the image to a clean black-and-white format, which is optimal for OCR.
-  * **Optical Character Recognition (OCR)**: The cleaned image is processed by **Tesseract OCR** (`pytesseract.image_to_data`). This step extracts not just the text but a list of "tokens," where each token contains the word, its confidence score, and its precise bounding box coordinates (`left`, `top`, `width`, `height`) on the page. This positional information is crucial for later stages.
-
-### 2\. Rule-Based Extraction (Baseline)
-
-Before deploying a complex model, we establish a strong baseline using `rules.py`. This module uses regular expressions and positional heuristics to perform an initial extraction. This provides immediate value and generates data for the HITL correction phase.
-
-  * **Line Grouping**: Tokens are grouped into lines based on their vertical (`top`) coordinates.
-  * **Dynamic Key-Value Extraction**: The script dynamically identifies key-value pairs by looking for separators like colons (`:`). It intelligently determines the value boundary by detecting the start of the next potential key on the same line, preventing greedy matching.
-  * **Test Table Extraction**: A separate function uses regex to identify common patterns for test results, such as `(Test Name) (Value) (Unit)`.
-
-### 3\. Human-in-the-Loop (HITL) for Data Labeling
-
-This is the most critical step for creating a supervised learning dataset. The `hitl.py` script launches a **Streamlit** web application that allows a human to review and correct the output from the rule-based system.
-
-  * **Interactive UI**: The app displays the document image for visual reference alongside editable tables (`st.data_editor`) for patient details, tests, and any additional sections.
-  * **Dynamic Schema**: The user can dynamically add or remove rows and columns, allowing for flexible labeling of varied document structures.
-  * **Saving Corrections**: When the user confirms their changes, the app saves a `correction.json` file. This file contains both the original OCR tokens (with coordinates) and the user-verified structured JSON, creating a perfectly labeled example for model training.
-
-### 4\. Supervised Learning with Transformer Models
-
-The corrected data is used to train a powerful Transformer model to perform token classification (NER). The goal is to assign a BIO (Beginning, Inside, Outside) tag to each token, such as `B-PATIENT_NAME` or `I-TESTS_VALUE`.
-
-#### Model Evolution
-
-  * **Attempt 1: BERT (`bert.py`)**: An initial attempt was made using `bert-base-uncased`. BERT is a powerful text-based model, but it treats the document as a one-dimensional sequence of words. This approach failed to achieve high accuracy because it is **unaware of the 2D document layout**. It struggled to differentiate entities based on their position, such as which column a value belongs to.
-
-  * **Attempt 2: LayoutLMv3 (`train_layoutlmv3.py`)**: To overcome BERT's limitations, the project was upgraded to **LayoutLMv3**. This is a multimodal model that processes three types of information simultaneously:
-
-    1.  **Text**: The meaning of the words.
-    2.  **Layout**: The 2D bounding box coordinates of each word.
-    3.  **Visual**: The actual pixels of the document image.
-
-    By understanding text, position, and visual cues (like lines and tables), LayoutLMv3 can learn the spatial structure of the lab report, leading to significantly better performance. The model is trained to assign the correct entity tag to each token from the human-labeled data.
-
------
-
-## 🚀 How to Run the Project
-
-1.  **Setup**:
-      * Clone the repository.
-      * Install dependencies: `pip install -r requirements.txt`. This includes `transformers`, `torch`, `streamlit`, `opencv-python`, `pdf2image`, `pytesseract`, etc.
-      * Install Tesseract OCR on your system.
-2.  **Preprocessing & OCR**:
-      * Place your PDFs in a `data/raw_pdfs` folder.
-      * Run the preprocessing and OCR scripts to generate cleaned images and token JSON files.
-3.  **Rule-Based Extraction**:
-      * Run `rules.py` on the OCR token files to generate baseline JSON outputs.
-4.  **Data Labeling**:
-      * Launch the HITL app: `streamlit run hitl.py`.
-      * Open the web interface, load documents, and correct the baseline extractions to generate `correction.json` files.
-5.  **Model Training**:
-      * Run the training script: `python train_layoutlmv3.py`.
-      * The trained model will be saved to the `models/` directory.
-6.  **Inference**:
-      * Use the provided `test_layoutlmv3.py` script to run the trained model on new documents.
-
------
-
-## 📊 Model Performance and Future Work
-
-The **LayoutLMv3 model performs significantly better** than the text-only BERT model, successfully identifying and structuring most patient and test information. It demonstrates a strong ability to use layout cues to disambiguate fields.
-
-However, the model's performance is still constrained by the limited size of the training dataset. Current work is focused on:
-
-  * **Data Augmentation**: Programmatically creating more training examples by swapping entities (names, dates) and simulating OCR errors to improve model robustness.
-  * **Hyperparameter Tuning**: Fine-tuning parameters like the learning rate and number of epochs to prevent overfitting on the small dataset.
-  * **Confidence Scoring**: Implementing a confidence score for the model's predictions to flag low-certainty extractions for human review.
+The project successfully implemented an end-to-end pipeline for structured data extraction from lab reports. The rule-based baseline provided a starting point, while the HITL UI enabled high-quality labeling. BERT’s limitations in handling document layouts led to the adoption of LayoutLMv3, which leveraged 2D spatial and visual information for superior performance. The modular design and iterative training process ensure scalability for future enhancements.
