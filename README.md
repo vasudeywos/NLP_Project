@@ -217,9 +217,68 @@ Below are placeholders for representative images (to be added via GitHub):
   - ![Sample Preprocessed Image](data/images/doc_pic.png)
 - **Figure 2: HITL UI Screenshot**
   - ![Sample Preprocessed Image](data/images/hitl_pic.png)
-- **Figure 3: OUtput** (`data/doc_1.pdf`)
-  - ![Sample Preprocessed Image](data/images/json_pic.png)
-
+- **Figure 3: Output** (`data/doc_1.pdf`)
+```json
+{
+  "patient": {
+    "name": {
+      "Value": "Mr K P SHRAVAN"
+    },
+    "gender": {
+      "Value": "Male"
+    },
+    "lab_id": {
+      "Value": "50641000301"
+    },
+    "age": {
+      "Value": "40 Years"
+    },
+    "mob_no": {
+      "Value": "9035707662"
+    },
+    "ref_by": {
+      "Value": "VIKRAM KAMATH"
+    },
+    "reg_date_and_time": {
+      "Value": "29-Jun-2025 06:37"
+    },
+    "sample_received_at": {
+      "Value": "KA-Bannergatta Road"
+    }
+  },
+  "tests": [
+    {
+      "name": "Adjusted Calcium",
+      "value": "8.1",
+      "unit": "mg/dL"
+    },
+    {
+      "name": "Chloride",
+      "value": "109",
+      "unit": "mEq/L"
+    },
+    {
+      "name": "LDL Cholesterol (Direct)",
+      "value": "32"
+    },
+    {
+      "name": "Active - B12",
+      "value": ">"
+    },
+    {
+      "value": "256.0",
+      "unit": "pmol/L"
+    }
+  ],
+  "additional_sections": {
+    "printed": [
+      {
+        "value": "29-Jun-2025 12:23"
+      }
+    ]
+  }
+}
+```
 ## Challenges
 
 1. **OCR Errors**: Tesseract struggled with low-quality scans or unusual fonts, requiring robust rule-based cleaning and HITL correction.
