@@ -171,44 +171,6 @@ NLP_proj/
   - Strengths: Handled tables and columns effectively, aligning with human-corrected outputs.
 - **HITL**: Critical for generating high-quality labeled data, enabling iterative model improvement.
 
-### Representative JSON Output
-
-Below is an example JSON output for `doc_1_page_01` (to be replaced with actual output from your repository):
-
-```json
-{
-  "patient": {
-    "name": {"Value": "John Doe", "Confidence": 0.95},
-    "age": {"Value": "45", "Confidence": 0.92},
-    "gender": {"Value": "Male", "Confidence": 0.93},
-    "lab_id": {"Value": "LAB12345", "Confidence": 0.90}
-  },
-  "tests": [
-    {
-      "name": "Glucose",
-      "value": "90",
-      "unit": "mg/dL",
-      "Confidence": 0.94
-    },
-    {
-      "name": "Hemoglobin",
-      "value": "13.5",
-      "unit": "g/dL",
-      "Confidence": 0.91
-    }
-  ],
-  "additional_sections": {
-    "treatment_goals": [
-      {
-        "category": "Cholesterol",
-        "value": "Reduce LDL to <100 mg/dL",
-        "Confidence": 0.89
-      }
-    ]
-  }
-}
-```
-
 ## Image Placeholders
 
 Below are placeholders for representative images (to be added via GitHub):
