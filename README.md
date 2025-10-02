@@ -213,11 +213,11 @@ Below is an example JSON output for `doc_1_page_01` (to be replaced with actual 
 
 Below are placeholders for representative images (to be added via GitHub):
 
-- **Figure 1: Sample Preprocessed Image** (`data/preprocessed/doc_1_page_01_proc.png`)
+- **Figure 1: Sample Preprocessed Image** (`data/preprocessed/doc_5_page_01_proc.png`)
   - ![Sample Preprocessed Image](data/images/doc_pic.png)
 - **Figure 2: HITL UI Screenshot**
   - ![Sample Preprocessed Image](data/images/hitl_pic.png)
-- **Figure 3: Output** (`data/doc_1.pdf`)
+- **Figure 3: Output** (`data/outputs/doc_5_page_01_output.json`)
 ```json
 {
   "patient": {
