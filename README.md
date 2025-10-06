@@ -171,9 +171,7 @@ NLP_proj/
   - Strengths: Handled tables and columns effectively, aligning with human-corrected outputs.
 - **HITL**: Critical for generating high-quality labeled data, enabling iterative model improvement.
 
-## Image Placeholders
-
-Below are placeholders for representative images (to be added via GitHub):
+## Representative
 
 - **Figure 1: Sample Preprocessed Image** (`data/preprocessed/doc_5_page_01_proc.png`)
   - ![Sample Preprocessed Image](data/images/doc_pic.png)
@@ -241,11 +239,7 @@ Below are placeholders for representative images (to be added via GitHub):
   }
 }
 ```
-## Challenges
 
-1. **OCR Errors**: Tesseract struggled with low-quality scans or unusual fonts, requiring robust rule-based cleaning and HITL correction.
-2. **Complex Layouts**: Tables and multi-column formats challenged BERT, necessitating LayoutLMv3.
-3. **Limited Data**: Small dataset size (5 PDFs) limited model generalization, mitigated by HITL iterations.
 
 
 ## Conclusion
